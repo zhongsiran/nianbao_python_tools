@@ -43,12 +43,18 @@ class ExportMysqlToXlsx:
 
     def save_to_xlsx(self):
         if self.worksheet_headrow:
-            for i in self.worksheet_headrow:
-                self.worksheet.row(1)
+            for i, j in enumerate(self.worksheet_headrow):
+                self.worksheet.cell(row=1, column=j+1, value=j)
         for result in self.results:
             print(result)
             for column in result:
                 print(column)
+        self.save_workboos()
+
+    def save_workbook(self):
+        now = date.today()
+        today = "%d-%d-%d" %(now.year, now.month, now.day)
+        self.workbook.save(today + '导出记录表')
 
     def close_cur(self):
         self.cur.close()
@@ -58,7 +64,7 @@ class ExportMysqlToXlsx:
 
 if __name__ == "__main__":
     E = ExportMysqlToXlsx()
-    E.get_db_data()
+    # E.get_db_data()
     E.save_to_xlsx()
-    E.close_cur()
-    E.close_conn()
+    # E.close_cur()
+    # E.close_conn()
