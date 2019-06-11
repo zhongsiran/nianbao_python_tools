@@ -18,14 +18,23 @@ class ExportMysqlToXlsx:
 
         self.conn = self.get_conn()
         self.cur = self.conn.cursor()
-        self.workbook = Workbook()
-        self.worksheet = self.workbook.active
+        # self.workbook = Workbook()
+        # self.worksheet = self.workbook.active
+
         self.worksheet_headrow = ['注册号','名称','地址','登记电话','法定代表人','联络员','联络员电话']
         self.worksheet_headrow.extend(['历史电话记录','本年度电话记录','跟进情况'])
         self.worksheet_headrow.extend(['年报状态','电话情况','联系员电话情况','企业类型','片区'])
         self.db_table_name = '2019_nianbao_corp'
         self.results = tuple()
         self.row = 1
+
+    def create_new_workbook(self):
+        workbook = Workbook()
+        worksheet = workbook.active
+        if self.worksheet_headrow:
+            for i, j in enumerate(self.worksheet_headrow):
+                worksheet.cell(row=1, column=i+1, value=j)
+        return workbook
 
     def get_conn(self):
         print('连接中......')
@@ -56,6 +65,8 @@ class ExportMysqlToXlsx:
         PhoneCallHistoryRecord, PhoneCallRecord, Status,
         nian_bao_status, phone_status, cphone_status, type, division
         FROM %s
+        WHERE nian_bao_status = '未填报'
+        ORDER BY division, type
         ''' % self.db_table_name
         results = self.query_all(self.cur, sql, None)
         if results:
@@ -65,25 +76,62 @@ class ExportMysqlToXlsx:
             self.results = ()
 
     def save_to_xlsx(self):
-        if self.worksheet_headrow:
-            for i, j in enumerate(self.worksheet_headrow):
-                self.worksheet.cell(row=1, column=i+1, value=j)
+        current_workbook = self.create_new_workbook()
         result_row = 2
-        for result in self.results:
-            for col_idx, col_content in enumerate(result):
-                self.worksheet.cell(row=result_row, column=col_idx+1, value=col_content)
-            result_row = result_row + 1
-        self.save_workbook()
+        first_row_idx = 0
+        for idx, content in enumerate(self.results):
+            if result_row == 2 and idx == 0:
+                # 首记录写入首行
+                for col_idx, col_content in enumerate(content):
+                    current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                result_row = result_row + 1
 
-    def save_workbook(self):
+            elif result_row == 2 and first_row_idx > 0:
+                # 后续文件首行补上个文件最后判断的记录
+                for col_idx, col_content in enumerate(self.results[first_row_idx]):
+                    current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                result_row = result_row + 1
+                # 判断是否单行文件情况，上个文件最后判断记录可能自成一个文件，需要判断。
+                if self.results[first_row_idx][14] == content[14] and self.results[first_row_idx][13] == content[13]:
+                    for col_idx, col_content in enumerate(content):
+                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                    result_row = result_row + 1
+                else:
+                    self.save_workbook(current_workbook, self.results[idx-1][14], self.results[idx-1][13])
+                    current_workbook = self.create_new_workbook()
+                    result_row = 2
+                    first_row_idx = idx
+                # 当前记录片区
+            elif result_row > 2 and self.results[idx][14] == self.results[idx-1][14]:
+                if self.results[idx][13] == self.results[idx-1][13]:
+                    for col_idx, col_content in enumerate(content):
+                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                    result_row = result_row + 1
+
+                else:
+                    self.save_workbook(current_workbook, self.results[idx-1][14], self.results[idx-1][13])
+                    current_workbook = self.create_new_workbook()
+                    result_row = 2
+                    first_row_idx = idx
+
+            else:
+                self.save_workbook(current_workbook, self.results[idx-1][14], self.results[idx-1][13])
+                current_workbook = self.create_new_workbook()
+                result_row = 2
+                first_row_idx = idx
+
+        self.save_workbook(current_workbook, self.results[idx][14], self.results[idx][13])
+
+    def save_workbook(self, workbook, division, corp_type):
         now = date.today()
         today = "%d-%d-%d" %(now.year, now.month, now.day)
-        save_name = today + '导出记录表.xlsx'
+        save_name = today + '-' +  division + '-' + corp_type + '-未报名单.xlsx'
         try:
-            self.workbook.save(save_name)
+            workbook.save(save_name)
         except PermissionError as e:
             print(e)
             print('出错了：无法保存文件“%s”，请检查是否已经打开同名文件。'% save_name)
+        workbook.close()
         
     def close_cur(self):
         self.cur.close()
