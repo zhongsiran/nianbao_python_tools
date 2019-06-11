@@ -95,27 +95,18 @@ class ExportMysqlToXlsx:
                         current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
                     result_row = result_row + 1
                 # 写入行为2且上个文件最后判断行不为0，新建立的文件，需要补回上一判断记录
-                elif result_row == 2 and first_row_idx > 0:
+                elif result_row == 2 and idx - first_row_idx == 1:
                     print('new file first row')
                     # 后续文件首行补上个文件最后判断的记录
                     for col_idx, col_content in enumerate(self.results[first_row_idx]):
                         current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
                     result_row = result_row + 1
                     # 判断是否单行文件情况，上个文件最后判断记录可能自成一个文件，需要判断。
-                    if self.results[first_row_idx][14] == content[14]:
-                        if self.results[first_row_idx][13] == content[13]:
-                            for col_idx, col_content in enumerate(content):
-                                current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
-                            result_row = result_row + 1
-                        # 如自成一个文件，保存为单独的文件
-                        else:
-                            self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
-                            # 另建新表
-                            current_workbook = self.create_new_workbook()
-                            result_row = 2
-                            # 保存当前判断行，在新建文件中补写入
-                            first_row_idx = idx
-                            file_count += 1
+                    # 补录行与当前行的片区和企业类型都相同时，才录入当前行，否则直接保存本文件，新建文件
+                    if self.results[first_row_idx][14] == content[14] and self.results[first_row_idx][13] == content[13]:
+                        for col_idx, col_content in enumerate(content):
+                            current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                        result_row = result_row + 1
                     else:
                         self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
                         # 另建新表
@@ -125,34 +116,28 @@ class ExportMysqlToXlsx:
                         first_row_idx = idx
                         file_count += 1
                     # 符合14片区、13类型均与上一行相等时，写入当前的文件中。
-                elif result_row > 2 and self.results[idx][14] == self.results[idx-1][14]:
-                    if self.results[idx][13] == self.results[idx-1][13]:
-                        print('current file continue...')
-                        for col_idx, col_content in enumerate(content):
-                            current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
-                        result_row = result_row + 1
+                elif result_row > 2 and self.results[idx][14] == self.results[idx-1][14] and self.results[idx][13] == self.results[idx-1][13]:
+                    print('current file continue...')
+                    for col_idx, col_content in enumerate(content):
+                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                    result_row = result_row + 1
                     # 否则保存当前文件，另建新文件。
-                    else:
-                        self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
-                        current_workbook = self.create_new_workbook()
-                        result_row = 2
-                        first_row_idx = idx
-                        file_count += 1
-                # 保存当前文件，另建新文件。
                 else:
                     self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
                     current_workbook = self.create_new_workbook()
                     result_row = 2
                     first_row_idx = idx
                     file_count += 1
-            # 迭代完成后保存当前文件
+            # 最后一行且与上一行同类
             elif self.results[idx-1][14] == content[14] and self.results[idx-1][13] == content[13]:
-                print('last row')
+                print('last row and continue')
                 # 在当前文件继续写入
                 for col_idx, col_content in enumerate(content):
                     current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
                 self.save_workbook(current_workbook, file_count, self.results[idx][14], self.results[idx][13])
+            # 最后一行且与上一行不同类，保存后新建文件写入再保存
             elif self.results[idx-1][14] != content[14] or self.results[idx-1][13] != content[13]:
+                print('last row and create a new file')
                 self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
                 file_count += 1
                 current_workbook = self.create_new_workbook()
