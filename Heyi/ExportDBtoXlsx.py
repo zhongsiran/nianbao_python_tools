@@ -76,58 +76,98 @@ class ExportMysqlToXlsx:
             self.results = ()
 
     def save_to_xlsx(self):
+        # 初始化首个表格
         current_workbook = self.create_new_workbook()
         result_row = 2
         first_row_idx = 0
+        file_count = 1
+        # 迭代查询数据，得到序号，内容
+        print('共找到' + str(len(self.results)) + '条记录')
         for idx, content in enumerate(self.results):
-            if result_row == 2 and idx == 0:
-                # 首记录写入首行
+            print(idx)
+            # 非最后一行
+            if idx +1 != len(self.results):
+                # 写入行为2且序号为0，即查询内容的首行，必定直接写入
+                if result_row == 2 and idx == 0:
+                    print('first file first row')
+                    # 首记录写入首行
+                    for col_idx, col_content in enumerate(content):
+                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                    result_row = result_row + 1
+                # 写入行为2且上个文件最后判断行不为0，新建立的文件，需要补回上一判断记录
+                elif result_row == 2 and first_row_idx > 0:
+                    print('new file first row')
+                    # 后续文件首行补上个文件最后判断的记录
+                    for col_idx, col_content in enumerate(self.results[first_row_idx]):
+                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                    result_row = result_row + 1
+                    # 判断是否单行文件情况，上个文件最后判断记录可能自成一个文件，需要判断。
+                    if self.results[first_row_idx][14] == content[14]:
+                        if self.results[first_row_idx][13] == content[13]:
+                            for col_idx, col_content in enumerate(content):
+                                current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                            result_row = result_row + 1
+                        # 如自成一个文件，保存为单独的文件
+                        else:
+                            self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
+                            # 另建新表
+                            current_workbook = self.create_new_workbook()
+                            result_row = 2
+                            # 保存当前判断行，在新建文件中补写入
+                            first_row_idx = idx
+                            file_count += 1
+                    else:
+                        self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
+                        # 另建新表
+                        current_workbook = self.create_new_workbook()
+                        result_row = 2
+                        # 保存当前判断行，在新建文件中补写入
+                        first_row_idx = idx
+                        file_count += 1
+                    # 符合14片区、13类型均与上一行相等时，写入当前的文件中。
+                elif result_row > 2 and self.results[idx][14] == self.results[idx-1][14]:
+                    if self.results[idx][13] == self.results[idx-1][13]:
+                        print('current file continue...')
+                        for col_idx, col_content in enumerate(content):
+                            current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                        result_row = result_row + 1
+                    # 否则保存当前文件，另建新文件。
+                    else:
+                        self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
+                        current_workbook = self.create_new_workbook()
+                        result_row = 2
+                        first_row_idx = idx
+                        file_count += 1
+                # 保存当前文件，另建新文件。
+                else:
+                    self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
+                    current_workbook = self.create_new_workbook()
+                    result_row = 2
+                    first_row_idx = idx
+                    file_count += 1
+            # 迭代完成后保存当前文件
+            elif self.results[idx-1][14] == content[14] and self.results[idx-1][13] == content[13]:
+                print('last row')
+                # 在当前文件继续写入
                 for col_idx, col_content in enumerate(content):
                     current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
-                result_row = result_row + 1
-
-            elif result_row == 2 and first_row_idx > 0:
-                # 后续文件首行补上个文件最后判断的记录
-                for col_idx, col_content in enumerate(self.results[first_row_idx]):
-                    current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
-                result_row = result_row + 1
-                # 判断是否单行文件情况，上个文件最后判断记录可能自成一个文件，需要判断。
-                if self.results[first_row_idx][14] == content[14] and self.results[first_row_idx][13] == content[13]:
-                    for col_idx, col_content in enumerate(content):
-                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
-                    result_row = result_row + 1
-                else:
-                    self.save_workbook(current_workbook, self.results[idx-1][14], self.results[idx-1][13])
-                    current_workbook = self.create_new_workbook()
-                    result_row = 2
-                    first_row_idx = idx
-                # 当前记录片区
-            elif result_row > 2 and self.results[idx][14] == self.results[idx-1][14]:
-                if self.results[idx][13] == self.results[idx-1][13]:
-                    for col_idx, col_content in enumerate(content):
-                        current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
-                    result_row = result_row + 1
-
-                else:
-                    self.save_workbook(current_workbook, self.results[idx-1][14], self.results[idx-1][13])
-                    current_workbook = self.create_new_workbook()
-                    result_row = 2
-                    first_row_idx = idx
-
-            else:
-                self.save_workbook(current_workbook, self.results[idx-1][14], self.results[idx-1][13])
+                self.save_workbook(current_workbook, file_count, self.results[idx][14], self.results[idx][13])
+            elif self.results[idx-1][14] != content[14] or self.results[idx-1][13] != content[13]:
+                self.save_workbook(current_workbook, file_count, self.results[idx-1][14], self.results[idx-1][13])
+                file_count += 1
                 current_workbook = self.create_new_workbook()
                 result_row = 2
-                first_row_idx = idx
+                for col_idx, col_content in enumerate(content):
+                    current_workbook.active.cell(row=result_row, column=col_idx+1, value=col_content)
+                self.save_workbook(current_workbook, file_count, content[14], content[13])
 
-        self.save_workbook(current_workbook, self.results[idx][14], self.results[idx][13])
-
-    def save_workbook(self, workbook, division, corp_type):
+    def save_workbook(self, workbook, file_count, division, corp_type):
         now = date.today()
         today = "%d-%d-%d" %(now.year, now.month, now.day)
-        save_name = today + '-' +  division + '-' + corp_type + '-未报名单.xlsx'
+        save_name = str(file_count) + '-' + today + '-' +  division + '-' + corp_type + '-未报名单.xlsx'
         try:
             workbook.save(save_name)
+            print('SAVE TO ' + save_name)
         except PermissionError as e:
             print(e)
             print('出错了：无法保存文件“%s”，请检查是否已经打开同名文件。'% save_name)
@@ -142,6 +182,7 @@ class ExportMysqlToXlsx:
 if __name__ == "__main__":
     E = ExportMysqlToXlsx()
     E.get_db_data()
-    E.save_to_xlsx()
-    E.close_cur()
-    E.close_conn()
+    if E.results:
+        E.save_to_xlsx()
+        E.close_cur()
+        E.close_conn()
